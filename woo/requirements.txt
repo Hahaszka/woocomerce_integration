@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+woocommerce
+jinja2
+python-multipart
