@@ -3,13 +3,15 @@ import shutil
 import uuid
 import json
 import io
-from fastapi import FastAPI, Request, HTTPException
+import asyncio
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import UploadFile
 from typing import List, Optional
 from woocommerce import API
 from PIL import Image
+import sheets_sync
 
 app = FastAPI()
 
@@ -31,6 +33,26 @@ wcapi = API(
     version="wc/v3",
     query_string_auth=True
 )
+
+@app.on_event("startup")
+async def startup_event():
+    print("Performing initial Google Sheets sync...")
+    try:
+        sheets_sync.full_sync(wcapi)
+    except Exception as e:
+        print(f"Initial sync failed: {e}")
+        
+    # Start background task for periodic sync
+    asyncio.create_task(periodic_sync_task())
+
+async def periodic_sync_task():
+    while True:
+        await asyncio.sleep(600)  # Every 10 minutes
+        print("Performing periodic Google Sheets sync...")
+        try:
+            sheets_sync.full_sync(wcapi)
+        except Exception as e:
+            print(f"Periodic sync failed: {e}")
 
 @app.get("/")
 async def root(request: Request):
@@ -111,6 +133,13 @@ async def create_product(request: Request):
     response = wcapi.post("products", data)
     if response.status_code not in [200, 201]:
         raise HTTPException(status_code=response.status_code, detail=f"Failed to create product: {response.text}")
+    
+    # Sync to sheets
+    try:
+        sheets_sync.sync_from_woo_to_sheets(wcapi)
+    except Exception as e:
+        print(f"Sync to sheets failed: {e}")
+        
     return response.json()
 
 @app.put("/api/products/{product_id}")
@@ -134,6 +163,13 @@ async def update_product(product_id: int, request: Request):
     response = wcapi.put(f"products/{product_id}", data)
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=f"Failed to update product: {response.text}")
+    
+    # Sync to sheets
+    try:
+        sheets_sync.sync_from_woo_to_sheets(wcapi)
+    except Exception as e:
+        print(f"Sync to sheets failed: {e}")
+        
     return response.json()
 
 @app.delete("/api/products/{product_id}")
@@ -141,4 +177,11 @@ async def delete_product(product_id: int):
     response = wcapi.delete(f"products/{product_id}", params={"force": True})
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail="Failed to delete product")
+    
+    # Sync to sheets
+    try:
+        sheets_sync.sync_from_woo_to_sheets(wcapi)
+    except Exception as e:
+        print(f"Sync to sheets failed: {e}")
+        
     return response.json()

@@ -58,6 +58,7 @@ services:
       - WOO_URL=http://localhost:8081
       - WOO_KEY=ck_1de8d3c39d61772cbad4f566977ebd86311e2b1a
       - WOO_SECRET=cs_15c450b27d9be3068096ee27b72acb1ff4730bb8
+      - GOOGLE_SHEET_ID=1PDwtpHnS6iLuxkbGixIPZxDubwJaIIlJHU7PPKMhBiM
       - PYTHONUNBUFFERED=1
     extra_hosts:
       - "localhost:host-gateway"
