@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+woocommerce
+jinja2
+python-multipart
+Pillow
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

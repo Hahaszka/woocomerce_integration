@@ -1,0 +1,70 @@
+services:
+  db:
+    image: mariadb:10.6.4
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpresspassword
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:latest
+    ports:
+      - "8081:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpresspassword
+      WORDPRESS_DB_NAME: wordpress
+    depends_on:
+      - db
+    volumes:
+      - wp_data:/var/www/html
+
+  wpcli:
+    image: wordpress:cli
+    user: root
+    depends_on:
+      - db
+      - wordpress
+    volumes:
+      - wp_data:/var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpresspassword
+      WORDPRESS_DB_NAME: wordpress
+    command: >
+      sh -c "
+      sleep 15;
+      wp core install --url=http://localhost:8081 --title='WooCommerce Tests' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --allow-root;
+      wp option update siteurl 'http://localhost:8081' --allow-root;
+      wp option update home 'http://localhost:8081' --allow-root;
+      wp rewrite structure '/%postname%/' --allow-root; 
+      mkdir -p /var/www/html/wp-content/upgrade;
+      chmod -R 777 /var/www/html/wp-content;
+      wp plugin install woocommerce --activate --allow-root;
+      "
+
+  app:
+    build: .
+    ports:
+      - "9000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - WOO_URL=http://localhost:8081
+      - WOO_KEY=ck_1de8d3c39d61772cbad4f566977ebd86311e2b1a
+      - WOO_SECRET=cs_15c450b27d9be3068096ee27b72acb1ff4730bb8
+      - GOOGLE_SHEET_ID=1PDwtpHnS6iLuxkbGixIPZxDubwJaIIlJHU7PPKMhBiM
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - wordpress
+
+volumes:
+  db_data:
+  wp_data:

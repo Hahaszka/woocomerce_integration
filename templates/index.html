@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WooCommerce Product Manager</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+
+    <div class="container mt-5">
+        <h2 class="mb-4">WooCommerce Product Manager</h2>
+        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#productModal"
+            onclick="openAddModal()">Add Product</button>
+        <div class="table-responsive">
+            <table id="productsTable" class="table table-striped table-bordered" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Price</th>
+                        <th>Description</th>
+                        <th>Images</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="productForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="productModalLabel">Add Product</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="productId">
+                        <div class="mb-3">
+                            <label for="productName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="productName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productPrice" class="form-label">Regular Price</label>
+                            <input type="number" step="0.01" class="form-control" id="productPrice" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="productDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productImages" class="form-label">Image URLs (comma separated)</label>
+                            <textarea class="form-control" id="productImages" rows="2"
+                                placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productImageFiles" class="form-label">Upload Images (from disk)</label>
+                            <input type="file" class="form-control" id="productImageFiles" multiple accept="image/*">
+                        </div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-info" id="btnFillRandom"
+                            onclick="fillRandomData()">Fill Random Data</button>
+                        <div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary">Save changes</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content bg-transparent border-0">
+                <div class="modal-body p-0 text-center position-relative">
+                    <button type="button" class="btn-close bg-light position-absolute top-0 end-0 m-3"
+                        data-bs-dismiss="modal" aria-label="Close"
+                        style="z-index: 2; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></button>
+                    <img id="previewImage" src="" class="img-fluid shadow-lg rounded"
+                        style="max-height: 85vh; object-fit: contain; cursor: pointer; background: white;"
+                        data-bs-dismiss="modal">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        let table;
+
+        $(document).ready(function () {
+            table = $('#productsTable').DataTable({
+                ajax: {
+                    url: '/api/products',
+                    dataSrc: '',
+                    error: function (xhr, error, thrown) {
+                        alert('Warning: Connection to WooCommerce API failed. Please ensure API settings are correct.');
+                    }
+                },
+                columns: [
+                    { data: 'id' },
+                    { data: 'name' },
+                    { data: 'regular_price' },
+                    {
+                        data: 'description',
+                        render: function (data) {
+                            if (!data) return '<span class="text-muted">None</span>';
+                            let text = String(data).replace(/(<([^>]+)>)/gi, "");
+                            return text.length > 50 ? text.substring(0, 47) + '...' : text;
+                        }
+                    },
+                    {
+                        data: 'images',
+                        render: function (images) {
+                            if (images && images.length > 0) {
+                                return `<img src="${images[0].src}" style="height: 40px; width: 40px; object-fit: cover; cursor: pointer;" class="img-thumbnail" alt="product" onclick="previewImageModal('${images[0].src}')" title="Click to preview">`;
+                            }
+                            return '<span class="text-muted">No Image</span>';
+                        }
+                    },
+                    {
+                        data: null,
+                        render: function (data, type, row) {
+                            return `<button class="btn btn-sm btn-warning me-1" onclick='openEditModal(${JSON.stringify(row).replace(/'/g, "&apos;")})'>Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick='deleteProduct(${row.id})'>Delete</button>`;
+                        }
+                    }
+                ]
+            });
+
+            $('#productForm').submit(function (e) {
+                e.preventDefault();
+                const id = $('#productId').val();
+                const name = $('#productName').val();
+                const price = $('#productPrice').val();
+                const description = $('#productDescription').val();
+                const imagesRaw = $('#productImages').val();
+                const imagesList = imagesRaw ? imagesRaw.split(',').filter(s => s.trim() !== "").map(src => ({ src: src.trim() })) : [];
+
+                const fileInput = document.getElementById('productImageFiles');
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('regular_price', price);
+                formData.append('description', description);
+                formData.append('images_json', JSON.stringify(imagesList));
+
+                if (fileInput && fileInput.files.length > 0) {
+                    for (let i = 0; i < fileInput.files.length; i++) {
+                        formData.append('files', fileInput.files[i]);
+                    }
+                }
+
+                const url = id ? `/api/products/${id}` : '/api/products';
+                const method = id ? 'PUT' : 'POST';
+
+                $.ajax({
+                    url: url,
+                    method: method,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function () {
+                        $('#productModal').modal('hide');
+                        table.ajax.reload();
+                    },
+                    error: function (err) {
+                        alert('Error processing request: ' + (err.responseJSON?.detail || 'Unknown error'));
+                        console.error(err);
+                    }
+                });
+            });
+        });
+
+        function openAddModal() {
+            $('#productModalLabel').text('Add Product');
+            $('#productId').val('');
+            $('#productName').val('');
+            $('#productPrice').val('');
+            $('#productDescription').val('');
+            $('#productImages').val('');
+            $('#productImageFiles').val('');
+            $('#btnFillRandom').show();
+        }
+
+        function previewImageModal(src) {
+            $('#previewImage').attr('src', src);
+            $('#imagePreviewModal').modal('show');
+        }
+
+        function openEditModal(row) {
+            $('#productModalLabel').text('Edit Product');
+            $('#productId').val(row.id);
+            $('#productName').val(row.name);
+            $('#productPrice').val(row.regular_price);
+            // Remove HTML tags for simple textarea display if WordPress provided HTML
+            const desc = row.description ? String(row.description).replace(/(<([^>]+)>)/gi, "") : "";
+            $('#productDescription').val(desc);
+            const imagesStr = row.images ? row.images.map(img => img.src).join(', ') : '';
+            $('#productImages').val(imagesStr);
+            $('#productImageFiles').val('');
+            $('#btnFillRandom').hide();
+            $('#productModal').modal('show');
+        }
+
+        function fillRandomData() {
+            const adjectives = ["Awesome", "Sleek", "Durable", "Ergonomic", "Modern", "Classic", "Premium", "Rustic", "Elegant", "Portable"];
+            const nouns = ["Chair", "Table", "Laptop", "Backpack", "Watch", "Shoes", "Headphones", "Camera", "Mug", "Lamp"];
+            const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const noun = nouns[Math.floor(Math.random() * nouns.length)];
+
+            $('#productName').val(`${adj} ${noun}`);
+            $('#productPrice').val((Math.random() * 400 + 10).toFixed(2));
+
+            const lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
+            $('#productDescription').val(lorem);
+
+            const randomId = Math.floor(Math.random() * 1000) + 1;
+            const imgUrl = `https://picsum.photos/id/${randomId}/800/800.jpg`;
+            $('#productImages').val(imgUrl);
+            $('#productImageFiles').val('');
+        }
+
+        function deleteProduct(id) {
+            if (confirm('Are you sure you want to delete this product?')) {
+                $.ajax({
+                    url: `/api/products/${id}`,
+                    method: 'DELETE',
+                    success: function () {
+                        table.ajax.reload();
+                    },
+                    error: function (err) {
+                        alert('Error deleting product: ' + (err.responseJSON?.detail || 'Unknown error'));
+                        console.error(err);
+                    }
+                });
+            }
+        }
+    </script>
+
+</body>
+
+</html>
