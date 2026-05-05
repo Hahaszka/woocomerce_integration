@@ -8,6 +8,7 @@ System opiera się na architekturze mikroserwisów uruchamianych w kontenerach D
 - **FastAPI App (port 9000)**: Główna logika aplikacji, API oraz interfejs użytkownika.
 - **WordPress/WooCommerce (port 8081)**: Sklep internetowy pełniący rolę bazy danych produktów.
 - **MariaDB**: Baza danych dla WordPressa.
+- **Ollama**: Lokalny serwer sztucznej inteligencji (LLM) do generowania opisów.
 - **Google Sheets**: Zewnętrzny arkusz do synchronizacji danych.
 
 ---
@@ -21,6 +22,7 @@ Serce aplikacji. Odpowiada za:
 - Serwowanie interfejsu webowego (FastAPI + Jinja2).
 - Obsługę API do tworzenia, edycji i usuwania produktów w WooCommerce.
 - Specjalną obsługę zdjęć (Bypass): zdjęcia nie są pobierane przez WordPressa, lecz hostowane lokalnie w folderze `static/uploads/` i przesyłane jako linki w metadanych produktu (`_image_urls`).
+- Integrację z modelami Ollama (`/api/generate-description`), pozwalającą na automatyczne pisanie opisów.
 - Automatyczne wyzwalanie synchronizacji z Google Sheets po każdej zmianie.
 
 #### [sheets_sync.py]
@@ -43,6 +45,7 @@ Jednostronicowa aplikacja (SPA) oparta na Bootstrapie i jQuery:
 Definiuje cały stos technologiczny. Zawiera automatyczną konfigurację WordPressa:
 - Instaluje wtyczkę WooCommerce przy starcie.
 - Konfiguruje stałe klucze API (`ck_...`, `cs_...`), aby aplikacja mogła od razu połączyć się ze sklepem.
+- Uruchamia serwer Ollama z rezerwacją GPU, aby umożliwić szybkie działanie modeli językowych.
 
 #### [Dockerfile]
 Instrukcja budowania obrazu dla aplikacji FastAPI. Instaluje zależności z `requirements.txt` i uruchamia serwer `uvicorn`.
@@ -76,4 +79,5 @@ Instrukcja budowania obrazu dla aplikacji FastAPI. Instaluje zależności z `req
 ## 🛠️ Funkcje Specjalne
 
 - **Image Bypass**: Aplikacja nie zmusza WordPressa do "ściągania" zdjęć do swojej biblioteki mediów. Dzięki temu synchronizacja jest błyskawiczna, a linki w Google Sheets zawsze wskazują na oryginalne źródło lub lokalny hosting aplikacji.
+- **AI Product Descriptions**: System korzysta z lekkiego, lokalnego modelu Ollama (domyślnie `llama3.2:1b`), aby na podstawie wygenerowanej nazwy produktu automatycznie pisać angażujące opisy po polsku. Zdejmuje to konieczność ręcznego pisania tekstów podczas testów i wypełniania bazy.
 - **Automatyczna Synchronizacja**: Co 10 minut skrypt wykonuje pełny "Background Sync", aby upewnić się, że dane w Google Sheets są aktualne.
