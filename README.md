@@ -1,67 +1,79 @@
-# WooCommerce & Google Sheets Sync Manager
+# WooCommerce to Google Sheets Integration
 
-Profesjonalny system do zarządzania produktami w sklepie WooCommerce z automatyczną synchronizacją z Arkuszami Google. Aplikacja zbudowana w oparciu o FastAPI, Docker oraz Bootstrap 5.
+Kompleksowy system integrujący sklep WooCommerce z arkuszami Google Sheets, pozwalający na zarządzanie produktami z poziomu dedykowanego panelu oraz automatyczną synchronizację danych.
 
-## 🚀 Główne Funkcje
+## 🚀 Architektura Systemu
 
-- **Zarządzanie Produktami (CRUD)**: Dodawanie, edycja i usuwanie produktów bezpośrednio z przejrzystego panelu webowego.
-- **Dwukierunkowa Synchronizacja**: Automatyczne przesyłanie danych o produktach z WooCommerce do Arkuszy Google.
-- **Obsługa Mediów**: Możliwość wgrywania zdjęć z dysku lokalnego (z automatyczną kompresją do formatu JPG) lub podawania adresów URL.
-- **Synchronizacja Okresowa**: Aplikacja automatycznie odświeża dane w Arkuszach Google co 10 minut.
-- **Nowoczesny Interfejs**: Responsywny panel użytkownika wykorzystujący Bootstrap 5 oraz DataTables do szybkiego wyszukiwania i sortowania produktów.
-- **Pełna Konteneryzacja**: Gotowe środowisko Docker Compose zawierające WordPress, MariaDB oraz aplikację synchronizującą.
+System opiera się na architekturze mikroserwisów uruchamianych w kontenerach Docker:
+- **FastAPI App (port 9000)**: Główna logika aplikacji, API oraz interfejs użytkownika.
+- **WordPress/WooCommerce (port 8081)**: Sklep internetowy pełniący rolę bazy danych produktów.
+- **MariaDB**: Baza danych dla WordPressa.
+- **Google Sheets**: Zewnętrzny arkusz do synchronizacji danych.
 
-## 🛠️ Wymagania Wstępne
+---
 
-Przed uruchomieniem upewnij się, że masz zainstalowane:
-- **Docker** oraz **Docker Compose**
-- Dostęp do API WooCommerce (klucze `Consumer Key` i `Consumer Secret`)
-- Projekt w Google Cloud z włączonym **Google Sheets API**
-- Plik `service_account.json` (klucz konta serwisowego Google)
+## 📂 Przegląd Plików
 
-## ⚙️ Konfiguracja
+### 🐍 Logika Pythona (Backend)
 
-Aplikacja konfiguruje się automatycznie na podstawie zmiennych środowiskowych w pliku `docker-compose.yml`:
+#### [main.py]
+Serce aplikacji. Odpowiada za:
+- Serwowanie interfejsu webowego (FastAPI + Jinja2).
+- Obsługę API do tworzenia, edycji i usuwania produktów w WooCommerce.
+- Specjalną obsługę zdjęć (Bypass): zdjęcia nie są pobierane przez WordPressa, lecz hostowane lokalnie w folderze `static/uploads/` i przesyłane jako linki w metadanych produktu (`_image_urls`).
+- Automatyczne wyzwalanie synchronizacji z Google Sheets po każdej zmianie.
 
-| Zmienna | Opis |
-| :--- | :--- |
-| `WOO_URL` | Adres URL Twojego sklepu WooCommerce |
-| `WOO_KEY` | Consumer Key z ustawień REST API WooCommerce |
-| `WOO_SECRET` | Consumer Secret z ustawień REST API WooCommerce |
-| `GOOGLE_SHEET_ID` | Identyfikator Arkusza Google (widoczny w URL arkusza) |
+#### [sheets_sync.py]
+Moduł odpowiedzialny wyłącznie za integrację z Google Sheets:
+- Wykorzystuje Google Sheets API v4.
+- `sync_from_woo_to_sheets`: Pobiera wszystkie produkty z WooCommerce i nadpisuje arkusz Google.
+- Obsługuje dwa typy autoryzacji: Service Account (`service_account.json`) lub User OAuth2 (`token.json`).
 
-### Klucze Google
-Umieść plik `service_account.json` w głównym katalogu projektu. Upewnij się, że adres e-mail konta serwisowego ma uprawnienia edycji do Twojego arkusza Google.
+### 🌐 Interfejs Użytkownika (Frontend)
 
-## 📦 Instalacja i Uruchomienie
+#### [templates/index.html]
+Jednostronicowa aplikacja (SPA) oparta na Bootstrapie i jQuery:
+- **Tabela Produktów**: Wykorzystuje DataTables do wyświetlania i wyszukiwania produktów.
+- **Zarządzanie**: Formularze modalne do dodawania/edycji produktów.
+- **Dashboard**: Szybkie linki do panelu administratora WooCommerce oraz bezpośrednio do arkusza Google Sheets.
 
-1. **Sklonuj repozytorium** i przejdź do folderu projektu.
-2. **Skonfiguruj zmienne** w `docker-compose.yml`.
-3. **Uruchom kontenery**:
-   ```bash
-   docker-compose up -d --build
-   ```
-4. **Dostęp do aplikacji**:
-   - Panel zarządzania: `http://localhost:9000`
-   - Lokalny WordPress (testowy): `http://localhost:8081` (użytkownik: `admin`, hasło: `admin`)
+### 🐳 Infrastruktura (Docker)
 
-## 📋 Struktura Arkusza
+#### [docker-compose.yml]
+Definiuje cały stos technologiczny. Zawiera automatyczną konfigurację WordPressa:
+- Instaluje wtyczkę WooCommerce przy starcie.
+- Konfiguruje stałe klucze API (`ck_...`, `cs_...`), aby aplikacja mogła od razu połączyć się ze sklepem.
 
-Podczas synchronizacji aplikacja tworzy/aktualizuje arkusz o następujących kolumnach:
-1. **ID** - Unikalny identyfikator produktu w WooCommerce.
-2. **Name** - Nazwa produktu.
-3. **Price** - Cena regularna.
-4. **Description** - Opis produktu (z oczyszczonymi tagami HTML).
-5. **Image URLs** - Linki do zdjęć produktu rozdzielone przecinkami.
+#### [Dockerfile]
+Instrukcja budowania obrazu dla aplikacji FastAPI. Instaluje zależności z `requirements.txt` i uruchamia serwer `uvicorn`.
 
-## 📁 Struktura Projektu
+### 🐘 Skrypty PHP (Pomocnicze dla WordPress)
 
-- `main.py` - Główny moduł FastAPI obsługujący API i UI.
-- `sheets_sync.py` - Logika integracji z Google Sheets API.
-- `static/uploads/` - Katalog na wgrane lokalnie zdjęcia produktów.
-- `templates/` - Szablony HTML (Jinja2).
-- `docker-compose.yml` - Definicja całego stosu technologicznego.
+- **setup-api-keys.php**: Skrypt uruchamiany przez WP-CLI, który wstrzykuje klucze API bezpośrednio do bazy danych WordPressa.
+- **force-ssl-rest.php**: Wtyczka typu "Must Use" (mu-plugin), która wymusza poprawne działanie API WooCommerce w środowisku Docker bez SSL.
+- **force-basic-auth.php**: Pomocniczy skrypt do autoryzacji.
 
-## 📝 Uwagi
-- Zdjęcia wgrywane lokalnie są dostępne pod adresem `http://app:8000/static/uploads/` (wewnątrz sieci Docker).
-- Przy pierwszym uruchomieniu aplikacja pobiera wszystkie produkty z WooCommerce i wysyła je do arkusza.
+---
+
+## ⚙️ Konfiguracja i Uruchomienie
+
+1.  **Zależności Google**: 
+    - Umieść plik `service_account.json` w głównym folderze.
+    - Upewnij się, że Twoje konto serwisowe ma dostęp (edytowanie) do arkusza wskazanego przez `GOOGLE_SHEET_ID`.
+
+2.  **Uruchomienie**:
+    ```bash
+    docker-compose up --build
+    ```
+
+3.  **Dostęp**:
+    - Panel aplikacji: `http://localhost:9000`
+    - WooCommerce Admin: `http://localhost:8081/wp-admin` (Login: `admin`, Hasło: `admin`)
+    - Arkusz Google: Adres skonfigurowany w zmiennej środowiskowej.
+
+---
+
+## 🛠️ Funkcje Specjalne
+
+- **Image Bypass**: Aplikacja nie zmusza WordPressa do "ściągania" zdjęć do swojej biblioteki mediów. Dzięki temu synchronizacja jest błyskawiczna, a linki w Google Sheets zawsze wskazują na oryginalne źródło lub lokalny hosting aplikacji.
+- **Automatyczna Synchronizacja**: Co 10 minut skrypt wykonuje pełny "Background Sync", aby upewnić się, że dane w Google Sheets są aktualne.

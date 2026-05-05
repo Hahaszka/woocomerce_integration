@@ -22,6 +22,7 @@ services:
       - db
     volumes:
       - wp_data:/var/www/html
+      - ./force-ssl-rest.php:/var/www/html/wp-content/mu-plugins/force-ssl-rest.php
 
   wpcli:
     image: wordpress:cli
@@ -31,6 +32,8 @@ services:
       - wordpress
     volumes:
       - wp_data:/var/www/html
+      - ./setup-api-keys.php:/var/www/html/setup-api-keys.php
+      - ./force-ssl-rest.php:/var/www/html/wp-content/mu-plugins/force-ssl-rest.php
     environment:
       WORDPRESS_DB_HOST: db
       WORDPRESS_DB_USER: wordpress
@@ -38,7 +41,7 @@ services:
       WORDPRESS_DB_NAME: wordpress
     command: >
       sh -c "
-      sleep 15;
+      sleep 20;
       wp core install --url=http://localhost:8081 --title='WooCommerce Tests' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --allow-root;
       wp option update siteurl 'http://localhost:8081' --allow-root;
       wp option update home 'http://localhost:8081' --allow-root;
@@ -46,6 +49,7 @@ services:
       mkdir -p /var/www/html/wp-content/upgrade;
       chmod -R 777 /var/www/html/wp-content;
       wp plugin install woocommerce --activate --allow-root;
+      wp eval-file /var/www/html/setup-api-keys.php --allow-root;
       "
 
   app:
@@ -55,11 +59,12 @@ services:
     volumes:
       - .:/app
     environment:
-      - WOO_URL=http://localhost:8081
-      - WOO_KEY=ck_1de8d3c39d61772cbad4f566977ebd86311e2b1a
-      - WOO_SECRET=cs_15c450b27d9be3068096ee27b72acb1ff4730bb8
+      - WOO_URL=http://wordpress
+      - WOO_KEY=ck_0000000000000000000000000000000000000001
+      - WOO_SECRET=cs_0000000000000000000000000000000000000001
       - GOOGLE_SHEET_ID=1PDwtpHnS6iLuxkbGixIPZxDubwJaIIlJHU7PPKMhBiM
       - PYTHONUNBUFFERED=1
+      - APP_HOST_URL=http://localhost:9000
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:

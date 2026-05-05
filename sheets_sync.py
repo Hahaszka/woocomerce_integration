@@ -10,10 +10,11 @@ from google.oauth2 import service_account
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "1PDwtpHnS6iLuxkbGixIPZxDubwJaIIlJHU7PPKMhBiM")
 RANGE_NAME = os.getenv("GOOGLE_SHEET_RANGE", "Arkusz1!A:E")
-SHEET_NAME = RANGE_NAME.split('!')[0] if '!' in RANGE_NAME else "Arkusz 1"
+SHEET_NAME = RANGE_NAME.split('!')[0] if '!' in RANGE_NAME else "Arkusz1"
 
 def get_sheets_service():
     creds = None
+    # 1. Try Service Account
     if os.path.exists('service_account.json'):
         try:
             print("Found service_account.json, using Service Account authentication...")
@@ -24,6 +25,14 @@ def get_sheets_service():
             return service
         except Exception as e:
             print(f"FAILED to initialize Service Account: {e}")
+
+    # 2. Try User OAuth2
+    if os.path.exists('token.json'):
+        try:
+            print("Found token.json, using User OAuth2 authentication...")
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        except Exception as e:
+            print(f"FAILED to load token.json: {e}")
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -33,16 +42,28 @@ def get_sheets_service():
             except Exception as e:
                 print(f"FAILED to refresh token: {e}")
         else:
-            print("No valid Google credentials found (service_account.json).")
+            print("No valid Google credentials found (token.json or service_account.json).")
             return None
             
     try:
         service = build('sheets', 'v4', credentials=creds)
-        print("Google Sheets Service initialized successfully.")
+        print("Google Sheets Service initialized successfully (User OAuth2).")
         return service
     except Exception as e:
         print(f"FAILED to build Sheets service: {e}")
         return None
+
+def _get_image_urls(product):
+    # 1. First check meta_data for the raw URLs entered by the user
+    meta_data = product.get('meta_data', [])
+    for meta in meta_data:
+        if meta.get('key') == '_image_urls':
+            return meta.get('value', '')
+
+    # 2. Fallback to standard WooCommerce images field
+    if 'images' in product and isinstance(product['images'], list):
+        return ', '.join([img.get('src', '') for img in product['images']])
+    return ''
 
 def sync_from_woo_to_sheets(wcapi):
     """Fetch everything from WooCommerce and overwrite the Sheet."""
@@ -63,7 +84,7 @@ def sync_from_woo_to_sheets(wcapi):
     
     values = [['ID', 'Name', 'Price', 'Description', 'Image URLs']]
     for p in products:
-        images = ", ".join([img['src'] for img in p.get('images', [])])
+        images = _get_image_urls(p)
         desc = p.get('description', '').replace('<p>', '').replace('</p>', '').replace('<br />', '\n')
         values.append([
             str(p['id']),
@@ -91,6 +112,7 @@ def full_sync(wcapi):
     """Perform a full bidirectional sync."""
     print("--- STARTING FULL BIDIRECTIONAL SYNC ---")
     try:
+        # All items in WooCommerce -> Sheets
         sync_from_woo_to_sheets(wcapi)
         print("--- FULL SYNC COMPLETED SUCCESSFULLY ---")
     except Exception as e:
